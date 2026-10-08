@@ -168,19 +168,20 @@ export async function dispatchPushNotification(
     timestamp: new Date().toISOString(),
     isRead: false,
     userPhone: notification.userPhone,
+    senderPhone: notification.senderPhone || caller?.phone,
     targetRole: notification.targetRole || 'all',
-    senderRole: notification.senderRole,
+    senderRole: notification.senderRole || (caller?.role === 'فني' ? 'فني' : 'عميل'),
     senderName: notification.senderName,
     data: notification.data,
   };
 
-  // Only trigger audio/vibrate/native notification on current device IF this device matches the target recipient!
-  // e.g. If a technician triggers an action FOR a client (targetRole: 'عميل'), the technician's device must NOT alert him!
-  const isTargetForCurrentDevice =
-    (!caller?.role || !finalNotification.targetRole || finalNotification.targetRole === 'all' || finalNotification.targetRole === caller.role) &&
-    (!caller?.phone || !finalNotification.userPhone || finalNotification.userPhone === caller.phone);
+  // Only trigger audio/vibrate/native notification on current device IF this device is the intended recipient!
+  // If caller is the sender of a notification directed to the OTHER role or another phone, DO NOT trigger sound/vibrate on caller's device!
+  const isSenderTargetingOther =
+    (caller?.role && finalNotification.targetRole && finalNotification.targetRole !== 'all' && finalNotification.targetRole !== caller.role) ||
+    (caller?.phone && finalNotification.userPhone && finalNotification.userPhone !== caller.phone);
 
-  if (isTargetForCurrentDevice) {
+  if (!isSenderTargetingOther) {
     // 1. Play audio
     playNotificationChime();
 
@@ -214,12 +215,13 @@ export async function dispatchPushNotification(
     }
   }
 
-  // 4. Save to Cloud Firestore
+  // 4. Save to Cloud Firestore for multi-device broadcast
   try {
     const notifDoc = doc(db, NOTIFICATIONS_COLLECTION, finalNotification.id);
     await setDoc(notifDoc, finalNotification, { merge: true });
-  } catch {
-    // Fallback: save to localStorage
+    console.log('[Notification] Published to Firestore successfully:', finalNotification.id);
+  } catch (err) {
+    console.warn('[Notification] Firestore save failed, using local fallback:', err);
     try {
       const stored = JSON.parse(localStorage.getItem('fi_khidma_notifications') || '[]');
       localStorage.setItem('fi_khidma_notifications', JSON.stringify([finalNotification, ...stored.slice(0, 49)]));
@@ -232,39 +234,118 @@ export async function dispatchPushNotification(
 }
 
 /**
- * Real-time subscription to notifications stream filtered by userPhone and userRole
+ * Real-time subscription to notifications stream filtered by userPhone and userRole.
+ * Automatically notifies when a new incoming push arrives from another device.
  */
 export function subscribeToNotifications(
   userPhone: string | undefined,
   userRole: 'عميل' | 'فني' | undefined,
-  onUpdate: (notifications: AppNotification[]) => void
+  onUpdate: (notifications: AppNotification[]) => void,
+  onNewIncomingNotification?: (notification: AppNotification) => void
 ): Unsubscribe {
   try {
     const colRef = collection(db, NOTIFICATIONS_COLLECTION);
     const q = query(colRef, orderBy('timestamp', 'desc'), limit(50));
 
+    let isInitialSnapshot = true;
+    const knownDocIds = new Set<string>();
+
     return onSnapshot(
       q,
       (snapshot) => {
         const notifs: AppNotification[] = [];
+        const incomingAlerts: AppNotification[] = [];
+
         snapshot.forEach((d) => {
           const item = d.data() as AppNotification;
+          const notifId = d.id || item.id;
           
-          // 1. Role matching:
-          // Ensure client only gets client/all notifications, and tech only gets tech/all notifications
+          // Role matching:
           const roleMatches =
             !item.targetRole ||
             item.targetRole === 'all' ||
             !userRole ||
             item.targetRole === userRole;
 
-          // 2. Phone matching:
+          // Phone matching:
           const phoneMatches = !item.userPhone || !userPhone || item.userPhone === userPhone;
 
           if (roleMatches && phoneMatches) {
-            notifs.push({ ...item, id: d.id });
+            notifs.push({ ...item, id: notifId });
           }
         });
+
+        // Inspect snapshot doc changes to identify real-time incoming pushes from other devices
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const item = change.doc.data() as AppNotification;
+            const notifId = change.doc.id || item.id;
+
+            if (!knownDocIds.has(notifId)) {
+              knownDocIds.add(notifId);
+
+              const roleMatches =
+                !item.targetRole ||
+                item.targetRole === 'all' ||
+                !userRole ||
+                item.targetRole === userRole;
+
+              const phoneMatches = !item.userPhone || !userPhone || item.userPhone === userPhone;
+              const isSentBySelf = Boolean(item.senderPhone && userPhone && item.senderPhone === userPhone);
+
+              const itemTime = item.timestamp ? new Date(item.timestamp).getTime() : 0;
+              const isFresh = Date.now() - itemTime < 180000; // Within last 3 minutes
+
+              // If it's a new document added AFTER initial load OR very fresh (within 30s) and unread
+              if ((!isInitialSnapshot || (isFresh && !item.isRead)) && roleMatches && phoneMatches && !isSentBySelf) {
+                incomingAlerts.push({ ...item, id: notifId });
+              }
+            }
+          }
+        });
+
+        isInitialSnapshot = false;
+
+        // Trigger rich alert for newly arrived incoming notifications on this device
+        if (incomingAlerts.length > 0) {
+          const latestIncoming = incomingAlerts[0];
+
+          // 1. Play pleasant sound chime
+          playNotificationChime();
+
+          // 2. Trigger mobile haptic vibration
+          triggerHapticNotification();
+
+          // 3. Show native Web Notification
+          if (isPushNotificationSupported() && Notification.permission === 'granted') {
+            try {
+              new Notification(latestIncoming.title, {
+                body: latestIncoming.body,
+                icon: '/icon.svg',
+                badge: '/icon.svg',
+                tag: latestIncoming.id,
+                dir: 'rtl',
+                lang: 'ar',
+              });
+            } catch {
+              navigator.serviceWorker?.ready.then((reg) => {
+                reg.showNotification(latestIncoming.title, {
+                  body: latestIncoming.body,
+                  icon: '/icon.svg',
+                  badge: '/icon.svg',
+                  tag: latestIncoming.id,
+                  dir: 'rtl',
+                  lang: 'ar',
+                });
+              }).catch(() => {});
+            }
+          }
+
+          // 4. Trigger UI in-app banner toast
+          if (onNewIncomingNotification) {
+            onNewIncomingNotification(latestIncoming);
+          }
+        }
 
         // Also merge local cache
         const local: AppNotification[] = JSON.parse(localStorage.getItem('fi_khidma_notifications') || '[]');
@@ -283,7 +364,8 @@ export function subscribeToNotifications(
 
         onUpdate(combined);
       },
-      () => {
+      (error) => {
+        console.warn('[Notifications] Firestore subscription error, fallback to local:', error);
         // Fallback to local
         const local: AppNotification[] = JSON.parse(localStorage.getItem('fi_khidma_notifications') || '[]');
         const filtered = local.filter((n) => {

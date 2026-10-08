@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LocationData, ServiceCategory, ServiceArea, AppSystemConfig, Task, TaskStatus, UserProfile, AppNotification, WorkingHours } from './types';
+import { LocationData, ServiceCategory, ServiceArea, AppSystemConfig, Task, TaskStatus, UserProfile, AppNotification, WorkingHours, Technician } from './types';
 import { INITIAL_TASKS, INITIAL_USER, SERVICE_CATEGORIES, INITIAL_SERVICE_AREAS, DEFAULT_SYSTEM_CONFIG } from './mockData';
 import { AndroidLayout, ActiveNavTab } from './components/AndroidLayout';
 import { TasksTab } from './components/TasksTab';
@@ -331,11 +331,19 @@ export default function App() {
     registerFirebaseServiceWorker();
     initializeFCMToken(user.phone);
 
-    const unsubNotifs = subscribeToNotifications(user.phone, user.role, (cloudNotifs) => {
-      if (cloudNotifs && cloudNotifs.length > 0) {
-        setNotifications(cloudNotifs);
+    const unsubNotifs = subscribeToNotifications(
+      user.phone,
+      user.role,
+      (cloudNotifs) => {
+        if (cloudNotifs && cloudNotifs.length > 0) {
+          setNotifications(cloudNotifs);
+        }
+      },
+      (newIncoming) => {
+        // Real-time incoming notification arrived from other device!
+        setLatestPushNotification(newIncoming);
       }
-    });
+    );
 
     return () => {
       unsubNotifs();
@@ -419,6 +427,7 @@ export default function App() {
         type: 'order_status',
         taskId: newTask.id,
         userPhone: clientPhone,
+        senderPhone: user.phone,
         targetRole: 'عميل',
         senderRole: 'system',
       },
@@ -437,38 +446,12 @@ export default function App() {
         type: 'order_status',
         taskId: newTask.id,
         targetRole: 'فني',
+        senderPhone: user.phone,
         senderRole: 'عميل',
         senderName: newTask.clientName || user.name,
       },
       { role: user.role, phone: user.phone }
-    ).then((notif) => {
-      if (user.role === 'فني') {
-        setLatestPushNotification(notif);
-      }
-    });
-
-    // 3. Simulated technician offer notification coming via FCM after 4.5 seconds (strictly for CLIENT)
-    setTimeout(async () => {
-      const offerNotif = await dispatchPushNotification(
-        {
-          title: 'عرض سعر جديد من فني معتمد 💬',
-          body: `الفني أحمد حسني (تقييم 4.9 ⭐) قدم عرضاً بقيمة ${newTask.price} ج.م لتنفيذ طلب "${newTask.title}".`,
-          type: 'offer_received',
-          taskId: newTask.id,
-          userPhone: clientPhone,
-          targetRole: 'عميل',
-          senderRole: 'فني',
-          senderName: 'المهندس أحمد حسني',
-        },
-        { role: user.role, phone: user.phone }
-      );
-
-      // ONLY display toast on current screen IF current user is a CLIENT!
-      if (user.role === 'عميل' && (!offerNotif.userPhone || offerNotif.userPhone === user.phone)) {
-        setLatestPushNotification(offerNotif);
-        showToast('عرض جديد متوفر لطلبك! فني معتمد بالقرب منك جاهز لتنفيذ الصيانة 🔔');
-      }
-    }, 4500);
+    );
   };
 
   // Technician communication handler (-5 points per client communication)
@@ -504,21 +487,28 @@ export default function App() {
     showToast('شكراً لتقييمك! تم اعتماد التقييم وإضافة +10 نقاط سمعة وثقة لحسابك ⭐');
   };
 
-  const handleUpdateTaskStatus = (taskId: string, newStatus: TaskStatus) => {
+  const handleUpdateTaskStatus = (taskId: string, newStatus: TaskStatus, techData?: Technician) => {
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, status: newStatus, ...(techData ? { technician: techData } : {}) }
+          : t
+      )
     );
-    updateTaskStatusInCloud(taskId, newStatus);
+    updateTaskFieldsInCloud(taskId, {
+      status: newStatus,
+      ...(techData ? { technician: techData } : {}),
+    });
 
     const matchedTask = tasks.find((t) => t.id === taskId);
     const clientPhone = matchedTask?.clientPhone || (user.role === 'عميل' ? user.phone : '01012345678');
-    const techPhone = matchedTask?.technician?.phone;
+    const techPhone = techData?.phone || matchedTask?.technician?.phone;
 
     // 1. Notification specifically targeted to the CLIENT (Customer)
     const clientStatusTitles: Record<TaskStatus, { title: string; body: string }> = {
       in_progress: {
         title: 'بدء تنفيذ طلب الصيانة 🚗🔧',
-        body: `الفني ${matchedTask?.technician?.name || 'المعتمد'} قبل طلبك وهو الآن في الطريق إليك ومباشرة العمل. (${matchedTask?.title || 'طلب صيانة'})`,
+        body: `الفني ${techData?.name || matchedTask?.technician?.name || 'المعتمد'} قبل طلبك وهو الآن في الطريق إليك ومباشرة العمل. (${matchedTask?.title || 'طلب صيانة'})`,
       },
       closed: {
         title: 'تم إنجاز طلب الصيانة بنجاح ✅',
@@ -538,17 +528,13 @@ export default function App() {
           type: 'order_status',
           taskId,
           userPhone: clientPhone,
+          senderPhone: user.phone,
           targetRole: 'عميل',
           senderRole: user.role === 'فني' ? 'فني' : 'admin',
           senderName: user.name,
         },
         { role: user.role, phone: user.phone }
-      ).then((created) => {
-        // Only show popup banner if current user is the client
-        if (user.role === 'عميل' && (!created.userPhone || created.userPhone === user.phone)) {
-          setLatestPushNotification(created);
-        }
-      });
+      );
     }
 
     // 2. Notification specifically targeted to the TECHNICIAN
@@ -575,17 +561,13 @@ export default function App() {
           type: 'order_status',
           taskId,
           userPhone: techPhone,
+          senderPhone: user.phone,
           targetRole: 'فني',
           senderRole: user.role === 'عميل' ? 'عميل' : 'admin',
           senderName: user.name,
         },
         { role: user.role, phone: user.phone }
-      ).then((created) => {
-        // Only show popup banner if current user is a technician
-        if (user.role === 'فني' && (!created.userPhone || created.userPhone === user.phone)) {
-          setLatestPushNotification(created);
-        }
-      });
+      );
     }
 
     showToast(
@@ -788,7 +770,32 @@ export default function App() {
 
   const handleSelectRole = (newRole: 'عميل' | 'فني') => {
     setUser((prev) => {
-      const updated: UserProfile = { ...prev, role: newRole };
+      let updated: UserProfile = { ...prev, role: newRole };
+
+      // Ensure distinct profiles and phone numbers during dual-device testing
+      if (newRole === 'فني' && (prev.phone === '01012345678' || prev.name === 'مصطفى عزت')) {
+        updated = {
+          ...updated,
+          id: 'user-ahmed',
+          name: 'أحمد حسني',
+          phone: '01123456789',
+          role: 'فني',
+          specialty: 'السباكة والأدوات الصحية',
+          technicianPoints: prev.technicianPoints || 50,
+          isAvailableForWork: true,
+        };
+      } else if (newRole === 'عميل' && (prev.phone === '01123456789' || prev.name === 'أحمد حسني')) {
+        updated = {
+          ...updated,
+          id: 'user-mostafa',
+          name: 'مصطفى عزت',
+          phone: '01012345678',
+          role: 'عميل',
+          balance: prev.balance || 350,
+          freeRequestsLeft: prev.freeRequestsLeft || 3,
+        };
+      }
+
       localStorage.setItem('fi_khidma_user_registered', JSON.stringify(updated));
       saveUserToCloud(updated);
       return updated;
@@ -802,10 +809,10 @@ export default function App() {
 
     if (newRole === 'فني') {
       setActiveTab('tech_market');
-      showToast('مرحباً بك كـ مقدم خدمة! فتح صفحة الخدمات المطلوبة الآن 🔧⚡');
+      showToast('مرحباً بك كـ مقدم خدمة (فني)! فتح صفحة الطلبات المتاحة 🔧⚡');
     } else {
       setActiveTab('home');
-      showToast('مرحباً بك كـ طالب خدمة! تصفح خدمات الصيانة واطلب فنيك الآن 🌟');
+      showToast('مرحباً بك كـ طالب خدمة (عميل)! تصفح الخدمات واطلب الآن 🌟');
     }
   };
 
@@ -958,37 +965,30 @@ export default function App() {
             user={user}
             currentLocation={currentLocation}
             onAcceptTask={(task) => {
-              handleUpdateTaskStatus(task.id, 'in_progress');
-              setTasks((prev) =>
-                prev.map((t) =>
-                  t.id === task.id
-                    ? {
-                        ...t,
-                        status: 'in_progress',
-                        technician: {
-                          id: user.id,
-                          name: user.name,
-                          avatar: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80',
-                          rating: user.rating,
-                          reviewsCount: user.reviewsCount,
-                          phone: user.phone,
-                          specialty: user.specialty || 'فني صيانة معتمد',
-                          distanceKm: 1.2,
-                          isAvailableForWork: user.isAvailableForWork,
-                          workingHours: user.workingHours,
-                        },
-                      }
-                    : t
-                )
-              );
+              const techData: Technician = {
+                id: user.id,
+                name: user.name,
+                avatar: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80',
+                rating: user.rating,
+                reviewsCount: user.reviewsCount,
+                phone: user.phone,
+                specialty: user.specialty || 'فني صيانة معتمد',
+                distanceKm: 1.2,
+                isAvailableForWork: user.isAvailableForWork,
+                workingHours: user.workingHours,
+              };
+              handleUpdateTaskStatus(task.id, 'in_progress', techData);
               showToast(`تم قبول الطلب بنجاح! توجه لصفحة "خدماتي" للمباشرة ⚡🔧`);
             }}
             onSubmitOffer={(task, offerAmount, etaMinutes, notes) => {
+              const newOffersCount = (task.offersCount || 0) + 1;
               setTasks((prev) =>
                 prev.map((t) =>
-                  t.id === task.id ? { ...t, offersCount: (t.offersCount || 0) + 1 } : t
+                  t.id === task.id ? { ...t, offersCount: newOffersCount } : t
                 )
               );
+              updateTaskFieldsInCloud(task.id, { offersCount: newOffersCount });
+
               dispatchPushNotification(
                 {
                   title: 'عرض سعر جديد على طلبك! 🏷️',
@@ -997,8 +997,10 @@ export default function App() {
                   taskId: task.id,
                   targetRole: 'عميل',
                   userPhone: task.clientPhone,
+                  senderPhone: user.phone,
                   senderRole: 'فني',
                   senderName: user.name,
+                  data: { offerAmount, etaMinutes, notes },
                 },
                 { role: user.role, phone: user.phone }
               );

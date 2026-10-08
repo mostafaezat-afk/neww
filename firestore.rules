@@ -26,6 +26,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Notifications collection: real-time multi-device notifications stream
+    match /notifications/{notifId} {
+      allow read, write: if true;
+    }
+
     // Default deny for all other paths
     match /{document=**} {
       allow read, write: if false;

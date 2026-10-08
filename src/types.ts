@@ -149,6 +149,7 @@ export interface AppNotification {
   timestamp: string;
   isRead: boolean;
   userPhone?: string; // Target recipient phone
+  senderPhone?: string; // Phone of sender to separate recipient vs sender alerts
   targetRole?: NotificationTargetRole; // 'عميل' for clients only, 'فني' for technicians only, 'all' for both
   senderRole?: 'عميل' | 'فني' | 'system' | 'admin';
   senderName?: string;
