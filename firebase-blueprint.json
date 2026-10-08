@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "Task": {
+      "title": "Task",
+      "description": "A service or maintenance task requested by a client",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the service task" },
+        "category": { "type": "string", "description": "Service category name" },
+        "categoryIcon": { "type": "string", "description": "Icon identifier" },
+        "status": { "type": "string", "enum": ["pending", "in_progress", "closed"], "description": "Task status" },
+        "description": { "type": "string", "description": "Detailed description of the issue" },
+        "price": { "type": "number", "description": "Price in EGP" },
+        "createdAt": { "type": "string", "description": "Creation timestamp or date string" },
+        "scheduledTime": { "type": "string", "description": "Scheduled time for technician visit" },
+        "clientName": { "type": "string", "description": "Name of the client who requested" },
+        "clientPhone": { "type": "string", "description": "Phone number of the client" },
+        "isFreeRequestUsed": { "type": "boolean", "description": "Whether free promo request was used" },
+        "offersCount": { "type": "number", "description": "Number of technician offers" },
+        "isUrgent": { "type": "boolean", "description": "Urgent emergency request flag" },
+        "isRated": { "type": "boolean", "description": "Whether task has been rated" },
+        "ratingStars": { "type": "number", "description": "Rating out of 5 stars" },
+        "ratingComment": { "type": "string", "description": "Client or tech review comment" }
+      },
+      "required": ["title", "category", "status", "price"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Registered app user, either client or technician",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "User Arabic full name" },
+        "phone": { "type": "string", "description": "User mobile phone" },
+        "role": { "type": "string", "enum": ["عميل", "فني"], "description": "User role" },
+        "rating": { "type": "number", "description": "User rating" },
+        "reviewsCount": { "type": "number", "description": "Reviews count" },
+        "balance": { "type": "number", "description": "Wallet balance in EGP" },
+        "freeRequestsLeft": { "type": "number", "description": "Free requests remaining for client" },
+        "technicianPoints": { "type": "number", "description": "Technician contact points balance" },
+        "reputationPoints": { "type": "number", "description": "Trust reputation score" },
+        "city": { "type": "string", "description": "City or governorate" }
+      },
+      "required": ["name", "phone", "role"]
+    }
+  },
+  "firestore": {
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Shared tasks created by clients and viewed by technicians and clients"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Profiles of registered clients and technicians"
+    }
+  }
+}

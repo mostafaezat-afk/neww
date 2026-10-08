@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Tasks collection: readable and writable by users to enable multi-device order sharing
+    match /tasks/{taskId} {
+      allow read, write: if true;
+    }
+    
+    // Users collection: user profile synchronization across devices
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Service categories collection: manageable by admin and readable by users
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+
+    // Service areas collection: manageable by admin and readable by users
+    match /areas/{areaId} {
+      allow read, write: if true;
+    }
+
+    // App system config collection
+    match /system_config/{configId} {
+      allow read, write: if true;
+    }
+
+    // Default deny for all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

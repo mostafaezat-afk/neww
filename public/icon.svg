@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e40af" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#blueGrad)" />
+  <!-- Service Home Icon & Wrench -->
+  <path d="M256 96 L112 216 L144 216 L144 384 C144 396 156 408 168 408 L216 408 L216 296 C216 288 224 280 232 280 L280 280 C288 280 296 288 296 296 L296 408 L344 408 C356 408 368 396 368 384 L368 216 L400 216 Z" fill="#ffffff" />
+  <!-- Tool Accent Circle -->
+  <circle cx="360" cy="160" r="48" fill="#fbbf24" stroke="#ffffff" stroke-width="8" />
+  <!-- Tool Silhouette in Yellow Circle -->
+  <path d="M344 148 L354 138 C358 134 364 134 368 138 L374 144 C378 148 378 154 374 158 L364 168 L376 180 C378 182 378 186 376 188 L370 194 C368 196 364 196 362 194 L350 182 L340 192 C336 196 330 196 326 192 L320 186 C316 182 316 176 320 172 L330 162 Z" fill="#1e3a8a" />
+</svg>

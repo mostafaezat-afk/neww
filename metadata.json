@@ -1,0 +1,11 @@
+{
+  "name": "فى الخدمة",
+  "description": "تطبيق فى الخدمة لطلب الخدمات المنزلية والصيانة مع تحديد دقيق للموقع عبر الخرائط التفاعلية وإدارة المهام والمحفظة",
+  "requestFramePermissions": [
+    "geolocation",
+    "notifications"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
