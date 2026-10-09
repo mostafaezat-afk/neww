@@ -336,18 +336,41 @@ export const RegistrationModal: React.FC<RegistrationModalProps> = ({
 
             {/* City */}
             <div>
-              <label className="text-slate-700 font-bold block mb-1">المحافظة / المدينة:</label>
-              <select
+              <label className="text-slate-700 font-bold block mb-1">المحافظة / المدينة (اكتب أو اختر مدينتك):</label>
+              <input
+                type="text"
+                list="egypt-cities"
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-              >
-                <option value="القاهرة">القاهرة (المعادي، التجمع، مدينة نصر...)</option>
-                <option value="الجيزة">الجيزة (الدقي، المهندسين، الشيخ زايد، 6 أكتوبر...)</option>
-                <option value="الإسكندرية">الإسكندرية (سموحة، لوران، ميامي...)</option>
-                <option value="الدقهلية">الدقهلية (المنصورة)</option>
-                <option value="الغربية">الغربية (طنطا، المحلة)</option>
-              </select>
+                placeholder="مثال: القاهرة، الجيزة، المنصورة، طنطا، أو أي مدينة..."
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <datalist id="egypt-cities">
+                <option value="القاهرة" />
+                <option value="الجيزة" />
+                <option value="الإسكندرية" />
+                <option value="الدقهلية" />
+                <option value="الغربية" />
+                <option value="الشرقية" />
+                <option value="القليوبية" />
+                <option value="المنوفية" />
+                <option value="البحيرة" />
+                <option value="كفر الشيخ" />
+                <option value="دمياط" />
+                <option value="بورسعيد" />
+                <option value="الإسماعيلية" />
+                <option value="السويس" />
+                <option value="الفيوم" />
+                <option value="بني سويف" />
+                <option value="المنيا" />
+                <option value="أسيوط" />
+                <option value="سوهاج" />
+                <option value="قنا" />
+                <option value="الأقصر" />
+                <option value="أسوان" />
+                <option value="البحر الأحمر" />
+                <option value="مطروح" />
+              </datalist>
             </div>
 
             <button

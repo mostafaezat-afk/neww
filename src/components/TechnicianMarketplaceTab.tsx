@@ -147,7 +147,7 @@ export const TechnicianMarketplaceTab: React.FC<TechnicianMarketplaceTabProps> =
           </div>
 
           <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-300">
-            <span>موقعك المعتمد: <strong className="text-white">{currentLocation.district || 'المعادي'}</strong></span>
+            <span>موقعك المعتمد: <strong className="text-white">{currentLocation.district || currentLocation.city || 'موقعك الحالي'}</strong></span>
             <span className="text-amber-300 font-bold">نقاط التواصل: {user.technicianPoints || 0} نقطة</span>
           </div>
         </div>

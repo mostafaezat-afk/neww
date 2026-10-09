@@ -116,15 +116,11 @@ export default function App() {
       } catch {}
     }
     return {
-      lat: 29.9602,
-      lng: 31.2569,
-      address: 'شارع النصر، المعادي، القاهرة (موقعي الحالي)',
-      city: 'القاهرة',
-      district: 'المعادي',
-      buildingNumber: '42',
-      floor: '3',
-      apartment: '12',
-      landmark: 'بجوار بنك مصر',
+      lat: 30.0444,
+      lng: 31.2357,
+      address: 'عنوان طلب الصيانة (اضغط للتحديد أو كتابة العنوان)',
+      city: 'المدينة',
+      district: 'الحي',
     };
   });
   const [isLocatingGPS, setIsLocatingGPS] = useState(false);
@@ -235,20 +231,8 @@ export default function App() {
         const { latitude, longitude } = pos.coords;
 
         let resolvedDistrict = 'موقعي الحالي';
-        let resolvedAddress = 'موقعي الحالي (GPS دقيق)';
-        let resolvedCity = 'القاهرة';
-
-        // Match with closest known service area if nearby
-        const closestArea = areas.find((a) => {
-          const d = Math.hypot(a.lat - latitude, a.lng - longitude);
-          return d < 0.08;
-        });
-
-        if (closestArea) {
-          resolvedDistrict = closestArea.district || closestArea.name;
-          resolvedCity = closestArea.city || resolvedCity;
-          resolvedAddress = `شارع رئيسي، ${closestArea.name} (بالقرب من موقعك)`;
-        }
+        let resolvedAddress = 'موقعي الحالي (GPS)';
+        let resolvedCity = 'المدينة';
 
         // Try reverse geocoding via OpenStreetMap nominatim with fast abort
         try {

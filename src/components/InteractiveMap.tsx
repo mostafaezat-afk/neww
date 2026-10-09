@@ -71,39 +71,32 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
   // Reverse geocoding simulated / fetched
   const updateAddressFromCoords = async (lat: number, lng: number) => {
     try {
-      // Find closest preset or fallback
-      const closest = PRESET_LOCATIONS.reduce((prev, curr) => {
-        const prevDist = Math.hypot(prev.lat - lat, prev.lng - lng);
-        const currDist = Math.hypot(curr.lat - lat, curr.lng - lng);
-        return currDist < prevDist ? curr : prev;
-      });
-
-      // Try quick reverse geocoding via OpenStreetMap nominatim with fallback
-      let newAddress = `${closest.district}، ${closest.city} (بالقرب من ${closest.name})`;
-      let city = closest.city;
-      let district = closest.district;
+      // Freeform fallback using coordinates, without forcing any preset area
+      let newAddress = `الموقع المختار على الخريطة (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      let city = currentLoc.city || 'المدينة';
+      let district = currentLoc.district || 'الموقع المحدد';
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&accept-language=ar`,
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=17&accept-language=ar`,
           { signal: controller.signal }
         );
         clearTimeout(timeoutId);
         if (res.ok) {
           const data = await res.json();
           if (data && data.display_name) {
-            const parts = data.display_name.split(',').slice(0, 3).join('، ');
+            const parts = data.display_name.split(',').slice(0, 4).join('، ');
             newAddress = parts || newAddress;
             if (data.address) {
-              city = data.address.city || data.address.state || city;
-              district = data.address.suburb || data.address.neighbourhood || district;
+              city = data.address.city || data.address.town || data.address.state || city;
+              district = data.address.suburb || data.address.neighbourhood || data.address.village || data.address.district || district;
             }
           }
         }
       } catch {
-        // Fallback to closest known landmark
+        // Keep coordinates or current address
       }
 
       const updated: LocationData = {
@@ -218,8 +211,6 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
       },
       () => {
         setIsLocating(false);
-        // Default to المعادي smoothly
-        setCoordinates(29.9602, 31.2569, 'المعادي - شارع النصر، القاهرة', 'القاهرة', 'المعادي');
       },
       { timeout: 8000, enableHighAccuracy: true }
     );
@@ -330,24 +321,23 @@ export const InteractiveMap: React.FC<InteractiveMapProps> = ({
 
       {/* Location summary & details form */}
       <div className="p-4 space-y-3 bg-white">
-        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-blue-50/70 border border-blue-100">
-          <div className="p-2 rounded-lg bg-blue-600 text-white shrink-0 mt-0.5">
-            <MapPin className="w-4 h-4" />
+        <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-100 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-blue-600" />
+              العنوان المعتمد (يمكنك تعديل الصياغة بحرية):
+            </span>
+            <span className="text-[10px] text-slate-400">
+              {currentLoc.lat.toFixed(4)}, {currentLoc.lng.toFixed(4)}
+            </span>
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-900">الموقع المحدد للخدمة</span>
-              <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-semibold">
-                {currentLoc.city || 'القاهرة'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-700 font-medium truncate mt-0.5" title={currentLoc.address}>
-              {currentLoc.address}
-            </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">
-              الإحداثيات: {currentLoc.lat.toFixed(4)}, {currentLoc.lng.toFixed(4)}
-            </p>
-          </div>
+          <input
+            type="text"
+            value={currentLoc.address}
+            onChange={(e) => setCurrentLoc({ ...currentLoc, address: e.target.value })}
+            placeholder="اكتب أو عدل تفاصيل العنوان هنا..."
+            className="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold text-slate-800 text-right"
+          />
         </div>
 
         {/* Detailed inputs (Building, Floor, Landmark) */}

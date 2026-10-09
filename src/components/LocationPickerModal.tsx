@@ -23,31 +23,39 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   const [activeTab, setActiveTab] = useState<'manual' | 'map'>('manual');
 
   // Manual address form state initialized with current location
-  const [city, setCity] = useState(currentLocation.city || 'القاهرة');
-  const [district, setDistrict] = useState(currentLocation.district || 'المعادي');
-  const [streetAddress, setStreetAddress] = useState(
-    currentLocation.address.replace(`، ${currentLocation.district}`, '').replace(`، ${currentLocation.city}`, '') || 'شارع النصر'
-  );
+  const [fullAddress, setFullAddress] = useState(currentLocation.address || '');
   const [buildingNumber, setBuildingNumber] = useState(currentLocation.buildingNumber || '');
   const [floor, setFloor] = useState(currentLocation.floor || '');
   const [apartment, setApartment] = useState(currentLocation.apartment || '');
   const [landmark, setLandmark] = useState(currentLocation.landmark || '');
+  const [showExtraDetails, setShowExtraDetails] = useState(
+    Boolean(currentLocation.buildingNumber || currentLocation.floor || currentLocation.apartment || currentLocation.landmark)
+  );
 
   if (!isOpen) return null;
 
   const handleSaveManualAddress = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanStreet = streetAddress.trim() || 'الشارع الرئيسي';
-    const cleanDistrict = district.trim() || 'وسط المدينة';
-    const cleanCity = city.trim() || 'القاهرة';
+    const cleanAddress = fullAddress.trim() || 'العنوان المسجل للخدمة';
 
-    const fullAddress = `${cleanStreet}، ${cleanDistrict}، ${cleanCity}`;
+    // Parse parts if comma-separated, otherwise set freeform
+    const parts = cleanAddress.split(/[,،]/).map((p) => p.trim()).filter(Boolean);
+    let resolvedCity = currentLocation.city || 'المدينة';
+    let resolvedDistrict = currentLocation.district || cleanAddress;
+
+    if (parts.length >= 2) {
+      resolvedCity = parts[parts.length - 1];
+      resolvedDistrict = parts[parts.length - 2];
+    } else if (parts.length === 1) {
+      resolvedDistrict = parts[0];
+      resolvedCity = parts[0];
+    }
 
     const updated: LocationData = {
       ...currentLocation,
-      address: fullAddress,
-      city: cleanCity,
-      district: cleanDistrict,
+      address: cleanAddress,
+      city: resolvedCity,
+      district: resolvedDistrict,
       buildingNumber: buildingNumber.trim() || undefined,
       floor: floor.trim() || undefined,
       apartment: apartment.trim() || undefined,
@@ -68,9 +76,9 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
               <MapPin className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-white">تحديد موقع طلب الخدمة</h3>
+              <h3 className="font-bold text-sm text-white">تحديد عنوان طلب الخدمة</h3>
               <p className="text-[11px] text-blue-100">
-                اختر بين إدخال عنوانك بالتفصيل أو استخدام موقعك عبر GPS
+                اكتب عنوانك بحرية تامة أو حدد موقعك عبر GPS
               </p>
             </div>
           </div>
@@ -91,7 +99,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
                 تحديد موقعك الحالي فوراً (GPS)
               </span>
               <span className="text-[10px] text-emerald-700 truncate block">
-                التقاط إحداثيات موقعك عبر الأقمار الصناعية بنقرة واحدة
+                التقاط موقعك التلقائي عبر الأقمار الصناعية بنقرة واحدة
               </span>
             </div>
           </div>
@@ -123,7 +131,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
             }`}
           >
             <Edit3 className="w-3.5 h-3.5" />
-            <span>إدخال العنوان يدوياً ✍️</span>
+            <span>كتابة العنوان يدوياً ✍️</span>
           </button>
           <button
             type="button"
@@ -142,103 +150,92 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         {/* Tab 1: Manual Address Form */}
         {activeTab === 'manual' && (
           <form onSubmit={handleSaveManualAddress} className="overflow-y-auto flex-1 p-4 space-y-3.5 text-xs">
-            <div className="p-3 bg-blue-50/60 rounded-2xl border border-blue-100 flex items-center gap-2 text-slate-700">
-              <Home className="w-4 h-4 text-blue-600 shrink-0" />
-              <p className="text-[11px] leading-relaxed">
-                أدخل تفاصيل عنوانك ليصل الفني مباشرةً إلى باب منزلك أو موقع العمل بدون تأخير.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                  المدينة <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="مثال: القاهرة، الجيزة، الإسكندرية..."
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                  الحي أو المنطقة <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="مثال: المعادي، التجمع، الدقي..."
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
+            <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-100 flex items-start gap-2.5 text-slate-700">
+              <Home className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+              <div className="text-[11px] leading-relaxed">
+                <span className="font-bold text-blue-900 block mb-0.5">حرية تامة في إدخال العنوان:</span>
+                اكتب عنوانك بالطريقة التي تناسبك (الشارع، الحي، القرية، المدينة، أو أي وصف) ليصل الفني إليك مباشرة دون التقيد بمناطق محددة.
               </div>
             </div>
 
+            {/* Primary Free-Form Address Box */}
             <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                اسم الشارع بالتفصيل <span className="text-red-500">*</span>
+              <label className="text-[11px] font-bold text-slate-800 block mb-1.5">
+                العنوان بالتفصيل <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+              <textarea
                 required
-                placeholder="مثال: شارع النصر المتفرع من اللاسلكي"
-                value={streetAddress}
-                onChange={(e) => setStreetAddress(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                rows={3}
+                placeholder="اكتب عنوانك بالتفصيل، مثال: المنصورة، شارع المشاية السفلية أمام نادي الجزيرة، أو شبرا الخيمة شارع 15 مايو، أو أي عنوان تريده..."
+                value={fullAddress}
+                onChange={(e) => setFullAddress(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none leading-relaxed resize-none transition"
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">رقم العقار</label>
-                <input
-                  type="text"
-                  placeholder="مثال: 42"
-                  value={buildingNumber}
-                  onChange={(e) => setBuildingNumber(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">الدور / الطابق</label>
-                <input
-                  type="text"
-                  placeholder="مثال: 3"
-                  value={floor}
-                  onChange={(e) => setFloor(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-bold text-slate-700 block mb-1">رقم الشقة</label>
-                <input
-                  type="text"
-                  placeholder="مثال: 12"
-                  value={apartment}
-                  onChange={(e) => setApartment(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
+            {/* Toggle Extra Details Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowExtraDetails(!showExtraDetails)}
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition"
+              >
+                <span>{showExtraDetails ? '▼ إخفاء تفاصيل العقار والشقة' : '◀ إضافة تفاصيل إضافية (رقم العقار، الدور، الشقة، علامة مميزة)'}</span>
+              </button>
             </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-slate-700 block mb-1">علامة مميزة أو إرشادات للمكان</label>
-              <input
-                type="text"
-                placeholder="مثال: بجوار بنك مصر أو أمام مسجد النور"
-                value={landmark}
-                onChange={(e) => setLandmark(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
+            {/* Optional Additional Details */}
+            {showExtraDetails && (
+              <div className="space-y-3 p-3 bg-slate-50/80 rounded-2xl border border-slate-200 animate-in fade-in duration-150">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-1">رقم العقار</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: 42"
+                      value={buildingNumber}
+                      onChange={(e) => setBuildingNumber(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-1">الدور / الطابق</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: 3"
+                      value={floor}
+                      onChange={(e) => setFloor(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-600 block mb-1">رقم الشقة</label>
+                    <input
+                      type="text"
+                      placeholder="مثال: 12"
+                      value={apartment}
+                      onChange={(e) => setApartment(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-600 block mb-1">علامة مميزة أو إرشادات للمكان (اختياري)</label>
+                  <input
+                    type="text"
+                    placeholder="مثال: بجوار صيدلية كذا أو أمام المسجد"
+                    value={landmark}
+                    onChange={(e) => setLandmark(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+            )}
 
             <button
               type="submit"
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-98 mt-2"
+              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-md transition active:scale-98 mt-2 cursor-pointer"
             >
               <Check className="w-4 h-4" />
               <span>حفظ واعتماد هذا العنوان لموقع الخدمة 📍</span>

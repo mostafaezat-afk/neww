@@ -68,11 +68,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   // Step 2 Location mode: 'gps' | 'manual' | 'map'
   const [locationMode, setLocationMode] = useState<'gps' | 'manual' | 'map'>('gps');
   const [isDetectingGPS, setIsDetectingGPS] = useState(false);
-  const [manualCity, setManualCity] = useState(defaultLocation.city || 'القاهرة');
-  const [manualDistrict, setManualDistrict] = useState(defaultLocation.district || 'المعادي');
-  const [manualStreet, setManualStreet] = useState(
-    defaultLocation.address.replace(`، ${defaultLocation.district}`, '').replace(`، ${defaultLocation.city}`, '') || 'شارع النصر'
-  );
+  const [manualAddress, setManualAddress] = useState(defaultLocation.address || '');
   const [manualBuilding, setManualBuilding] = useState(defaultLocation.buildingNumber || '');
   const [manualFloor, setManualFloor] = useState(defaultLocation.floor || '');
   const [manualApartment, setManualApartment] = useState(defaultLocation.apartment || '');
@@ -81,11 +77,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setLocation(defaultLocation);
-      setManualCity(defaultLocation.city || 'القاهرة');
-      setManualDistrict(defaultLocation.district || 'المعادي');
-      setManualStreet(
-        defaultLocation.address.replace(`، ${defaultLocation.district}`, '').replace(`، ${defaultLocation.city}`, '') || 'شارع النصر'
-      );
+      setManualAddress(defaultLocation.address || '');
       setManualBuilding(defaultLocation.buildingNumber || '');
       setManualFloor(defaultLocation.floor || '');
       setManualApartment(defaultLocation.apartment || '');
@@ -164,16 +156,25 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
 
   const handleConfirmManualAddress = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const cleanStreet = manualStreet.trim() || 'الشارع الرئيسي';
-    const cleanDistrict = manualDistrict.trim() || 'المعادي';
-    const cleanCity = manualCity.trim() || 'القاهرة';
-    const fullAddress = `${cleanStreet}، ${cleanDistrict}، ${cleanCity}`;
+    const cleanAddress = manualAddress.trim() || location.address || 'العنوان المحدد للخدمة';
+
+    const parts = cleanAddress.split(/[,،]/).map((p) => p.trim()).filter(Boolean);
+    let resolvedCity = location.city || 'المدينة';
+    let resolvedDistrict = location.district || cleanAddress;
+
+    if (parts.length >= 2) {
+      resolvedCity = parts[parts.length - 1];
+      resolvedDistrict = parts[parts.length - 2];
+    } else if (parts.length === 1) {
+      resolvedDistrict = parts[0];
+      resolvedCity = parts[0];
+    }
 
     const updated: LocationData = {
       ...location,
-      address: fullAddress,
-      city: cleanCity,
-      district: cleanDistrict,
+      address: cleanAddress,
+      city: resolvedCity,
+      district: resolvedDistrict,
       buildingNumber: manualBuilding.trim() || undefined,
       floor: manualFloor.trim() || undefined,
       apartment: manualApartment.trim() || undefined,
@@ -399,40 +400,17 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
               {/* Manual Mode */}
               {locationMode === 'manual' && (
                 <div className="p-4 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-700 block mb-1">المحافظة / المدينة: *</label>
-                      <input
-                        type="text"
-                        required
-                        value={manualCity}
-                        onChange={(e) => setManualCity(e.target.value)}
-                        className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="مثال: القاهرة"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-700 block mb-1">الحي أو المنطقة: *</label>
-                      <input
-                        type="text"
-                        required
-                        value={manualDistrict}
-                        onChange={(e) => setManualDistrict(e.target.value)}
-                        className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="مثال: المعادي"
-                      />
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">اسم الشارع بالتفصيل: *</label>
-                    <input
-                      type="text"
+                    <label className="text-[11px] font-bold text-slate-800 block mb-1">
+                      العنوان بالتفصيل (اكتب عنوانك كما تشاء): *
+                    </label>
+                    <textarea
                       required
-                      value={manualStreet}
-                      onChange={(e) => setManualStreet(e.target.value)}
-                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="مثال: شارع النصر، متفرع من اللاسلكي"
+                      rows={3}
+                      value={manualAddress}
+                      onChange={(e) => setManualAddress(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed resize-none text-right"
+                      placeholder="مثال: المنصورة، المشاية السفلية أمام نادي الجزيرة، أو أي شارع/قرية/حي تريده في أي محافظة..."
                     />
                   </div>
 
@@ -476,7 +454,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({
                       value={manualLandmark}
                       onChange={(e) => setManualLandmark(e.target.value)}
                       className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="مثال: بجوار بنك مصر أو صيدلية العزبي"
+                      placeholder="مثال: بجوار بنك مصر أو صيدلية كذا"
                     />
                   </div>
                 </div>
